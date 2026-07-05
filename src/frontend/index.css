@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700;800&family=Noto+Sans+Tamil:wght@300;400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Noto Sans Tamil", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Fraunces", Georgia, serif;
+  --font-display: "Archivo Black", var(--font-sans);
+  --font-mono: "JetBrains Mono", monospace;
+
+  
+  --color-ink: #0E0E0E;
+  --color-paper: #F3F1EC;
+  --color-signal: #E0362F;
+  --color-signal-tint: #F7DEDB;
+  --color-line: #D8D5CC;
+  --color-mute: #6B6960;
+  --color-white: #FFFFFF;
+}
+
+@layer utilities {
+  .serif-italic {
+    font-family: var(--font-serif);
+    font-style: italic;
+  }
+  
+  .font-display-condensed {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  .mono-small-caps {
+    font-family: var(--font-mono);
+    font-variant-caps: all-small-caps;
+  }
+}
+
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+

@@ -1,0 +1,6 @@
+{
+  "name": "MedLens AI",
+  "description": "Multimodal clinical triage and explainability assistant featuring a transparent multi-stage AI reasoning pipeline.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

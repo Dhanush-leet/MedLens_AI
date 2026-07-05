@@ -1,0 +1,371 @@
+[
+  {
+    "id": "session_1783164427963",
+    "messages": [
+      {
+        "id": "msg_1783164513737_user",
+        "role": "user",
+        "text": "I have had severe crushing chest pain and pressure spreading to my left shoulder and arm, accompanied by shortness of breath and a cold sweat.",
+        "image": null,
+        "timestamp": "2026-07-04T11:28:34.116Z"
+      },
+      {
+        "id": "msg_1783164514116_assistant",
+        "role": "assistant",
+        "text": "Your described symptoms contain severe, critical clinical warning signs (such as chest pain, extreme breathing difficulties, severe bleeding, or potential stroke indicators). Immediate professional medical evaluation is crucial.",
+        "triageResult": {
+          "id": "triage_1783164514116",
+          "sessionId": "session_1783164427963",
+          "urgencyLevel": "Emergency",
+          "explanation": "Your described symptoms contain severe, critical clinical warning signs (such as chest pain, extreme breathing difficulties, severe bleeding, or potential stroke indicators). Immediate professional medical evaluation is crucial.",
+          "redFlags": [
+            "Chest pain, tightness, or heavy pressure",
+            "Severe sudden difficulty breathing or gasping",
+            "Sudden weakness, numbness, or facial drooping (FAST)",
+            "Severe uncontrolled bleeding",
+            "Sudden severe confusion or slurred speech"
+          ],
+          "recommendedSpecialist": "Emergency Medical Services (EMS) / Emergency Department",
+          "disclaimer": "This tool is not a medical professional. If you are experiencing a life-threatening emergency, call emergency services (911 or your local emergency number) immediately.",
+          "pipelineTrace": [
+            {
+              "stage": "extraction",
+              "title": "No document or symptom photo provided.",
+              "status": "skipped",
+              "durationMs": 0
+            },
+            {
+              "stage": "retrieval",
+              "title": "Retrieved 3 reference documents.",
+              "status": "completed",
+              "output": "Retrieved Chunks:\n- Chest Pain and Cardiac Symptoms (Source: American Heart Association Guidelines)\n- Hypertension and Hypertensive Crisis (Source: American Heart Association)\n- Gastroesophageal Reflux Disease (GERD) (Source: American College of Gastroenterology)\n\nFull Reference Content:\n[Topic: Chest Pain and Cardiac Symptoms | Source: American Heart Association Guidelines]\nChest pain, tightness, pressure, or squeezing in the chest that may radiate to the jaw, neck, back, or one or both arms is a key sign of myocardial infarction (heart attack). Associated symptoms include shortness of breath, cold sweats, dizziness, lightheadedness, or nausea. Sudden onset of these symptoms is an absolute medical emergency. Immediate emergency medical services (911 or local emergency) should be contacted.\n\n[Topic: Hypertension and Hypertensive Crisis | Source: American Heart Association]\nHypertension (high blood pressure) is typically asymptomatic (\"the silent killer\"). Routine management involves medication and lifestyle changes. However, a hypertensive crisis occurs when blood pressure rises suddenly above 180/120 mmHg. If accompanied by chest pain, shortness of breath, back pain, numbness, weakness, change in vision, or difficulty speaking, it indicates end-organ damage and is a medical Emergency.\n\n[Topic: Gastroesophageal Reflux Disease (GERD) | Source: American College of Gastroenterology]\nAcid reflux or heartburn is characterized by a burning sensation in the chest (behind the breastbone) that often occurs after eating and may be worse when lying down. It is caused by stomach acid flowing back into the esophagus. Over-the-counter antacids, H2 blockers, or proton pump inhibitors (PPIs) provide relief. GERD is routine, but if chest pain radiates to the arm/jaw or is accompanied by shortness of breath, it must be triaged as a potential cardiac emergency.",
+              "durationMs": 3
+            },
+            {
+              "stage": "reasoning",
+              "title": "Completed reasoning synthesis.",
+              "status": "completed",
+              "output": "CRITICAL EMERGENCY: Detected vital warning signs (e.g. chest discomfort, severe dyspnea, or severe bleeding). Immediate medical dispatch required. Bypassing clinical analysis for vital safety reasons.",
+              "durationMs": 0
+            },
+            {
+              "stage": "formatting",
+              "title": "Triage card created successfully.",
+              "status": "completed",
+              "durationMs": 0
+            }
+          ],
+          "createdAt": "2026-07-04T11:28:34.116Z"
+        },
+        "timestamp": "2026-07-04T11:28:34.116Z"
+      },
+      {
+        "id": "msg_1783235427646_user",
+        "role": "user",
+        "text": "I was having a leg pain, As I made my leg to crash in the door. whether I should see the doctor or I should use the home remedies",
+        "image": null,
+        "timestamp": "2026-07-05T07:10:27.968Z"
+      },
+      {
+        "id": "msg_1783235427967_assistant",
+        "role": "assistant",
+        "text": "Simulated triage output: Your symptoms represent a mild routine health profile. Regular GP checkup recommended.",
+        "triageResult": {
+          "id": "triage_1783235427967",
+          "sessionId": "session_1783164427963",
+          "urgencyLevel": "Routine",
+          "explanation": "Simulated triage output: Your symptoms represent a mild routine health profile. Regular GP checkup recommended.",
+          "redFlags": [
+            "Fever over 103°F",
+            "Shortness of breath"
+          ],
+          "recommendedSpecialist": "General Practitioner",
+          "disclaimer": "Simulated preview mode. Consult a licensed doctor.",
+          "pipelineTrace": [
+            {
+              "stage": "extraction",
+              "title": "No document or symptom photo provided.",
+              "status": "skipped",
+              "durationMs": 0
+            },
+            {
+              "stage": "retrieval",
+              "title": "Retrieved 3 reference documents.",
+              "status": "completed",
+              "output": "Retrieved Chunks:\n- Chest Pain and Cardiac Symptoms (Source: American Heart Association Guidelines)\n- Migraine and Severe Headache (Source: National Institute of Neurological Disorders)\n- Sprains and Strains (Source: American Academy of Orthopaedic Surgeons)\n\nFull Reference Content:\n[Topic: Chest Pain and Cardiac Symptoms | Source: American Heart Association Guidelines]\nChest pain, tightness, pressure, or squeezing in the chest that may radiate to the jaw, neck, back, or one or both arms is a key sign of myocardial infarction (heart attack). Associated symptoms include shortness of breath, cold sweats, dizziness, lightheadedness, or nausea. Sudden onset of these symptoms is an absolute medical emergency. Immediate emergency medical services (911 or local emergency) should be contacted.\n\n[Topic: Migraine and Severe Headache | Source: National Institute of Neurological Disorders]\nMigraine is a common neurological condition characterized by intense, throbbing head pain, usually on one side. Associated symptoms include sensitivity to light (photophobia) and sound (phonophobia), nausea, vomiting, or visual disturbances known as auras (e.g., flashing lights, temporary blind spots). While painful, routine migraines are classified as Urgent or Routine. However, a sudden, explosive headache (thunderclap headache) described as the \"worst headache of your life\" can indicate a ruptured aneurysm and is a medical emergency.\n\n[Topic: Sprains and Strains | Source: American Academy of Orthopaedic Surgeons]\nA sprain is a stretching or tearing of ligaments (e.g., ankle sprain), while a strain is an injury to a muscle or tendon. Symptoms include localized pain, swelling, bruising, and limited joint mobility. Acute care follows the RICE protocol: Rest, Ice, Compression, and Elevation. Minor sprains are self-care or routine. Red flags include complete inability to bear weight, visible joint deformity, or numbness/tingling, which suggest a fracture or nerve damage requiring Urgent evaluation.",
+              "durationMs": 3
+            },
+            {
+              "stage": "reasoning",
+              "title": "Completed reasoning synthesis.",
+              "status": "completed",
+              "output": "Simulated reasoning: Analyzing \"I was having a leg pain, As I made my leg to crash in the door. whether I should see the doctor or I should use the home remedies\". Correlating with reference knowledge. Mild symptoms, suggested self-care.",
+              "durationMs": 0
+            },
+            {
+              "stage": "formatting",
+              "title": "Triage card created successfully.",
+              "status": "completed",
+              "durationMs": 0
+            }
+          ],
+          "createdAt": "2026-07-05T07:10:27.967Z",
+          "language": "en"
+        },
+        "timestamp": "2026-07-05T07:10:27.968Z"
+      },
+      {
+        "id": "msg_1783235468588_user",
+        "role": "user",
+        "text": "I was having a leg pain, As I made my leg to crash in the door. whether I should see the doctor or I should use the home remedies",
+        "image": null,
+        "timestamp": "2026-07-05T07:11:08.906Z"
+      },
+      {
+        "id": "msg_1783235468906_assistant",
+        "role": "assistant",
+        "text": "Simulated triage output: Your symptoms represent a mild routine health profile. Regular GP checkup recommended.",
+        "triageResult": {
+          "id": "triage_1783235468906",
+          "sessionId": "session_1783164427963",
+          "urgencyLevel": "Routine",
+          "explanation": "Simulated triage output: Your symptoms represent a mild routine health profile. Regular GP checkup recommended.",
+          "redFlags": [
+            "Fever over 103°F",
+            "Shortness of breath"
+          ],
+          "recommendedSpecialist": "General Practitioner",
+          "disclaimer": "Simulated preview mode. Consult a licensed doctor.",
+          "pipelineTrace": [
+            {
+              "stage": "extraction",
+              "title": "No document or symptom photo provided.",
+              "status": "skipped",
+              "durationMs": 0
+            },
+            {
+              "stage": "retrieval",
+              "title": "Retrieved 3 reference documents.",
+              "status": "completed",
+              "output": "Retrieved Chunks:\n- Chest Pain and Cardiac Symptoms (Source: American Heart Association Guidelines)\n- Migraine and Severe Headache (Source: National Institute of Neurological Disorders)\n- Sprains and Strains (Source: American Academy of Orthopaedic Surgeons)\n\nFull Reference Content:\n[Topic: Chest Pain and Cardiac Symptoms | Source: American Heart Association Guidelines]\nChest pain, tightness, pressure, or squeezing in the chest that may radiate to the jaw, neck, back, or one or both arms is a key sign of myocardial infarction (heart attack). Associated symptoms include shortness of breath, cold sweats, dizziness, lightheadedness, or nausea. Sudden onset of these symptoms is an absolute medical emergency. Immediate emergency medical services (911 or local emergency) should be contacted.\n\n[Topic: Migraine and Severe Headache | Source: National Institute of Neurological Disorders]\nMigraine is a common neurological condition characterized by intense, throbbing head pain, usually on one side. Associated symptoms include sensitivity to light (photophobia) and sound (phonophobia), nausea, vomiting, or visual disturbances known as auras (e.g., flashing lights, temporary blind spots). While painful, routine migraines are classified as Urgent or Routine. However, a sudden, explosive headache (thunderclap headache) described as the \"worst headache of your life\" can indicate a ruptured aneurysm and is a medical emergency.\n\n[Topic: Sprains and Strains | Source: American Academy of Orthopaedic Surgeons]\nA sprain is a stretching or tearing of ligaments (e.g., ankle sprain), while a strain is an injury to a muscle or tendon. Symptoms include localized pain, swelling, bruising, and limited joint mobility. Acute care follows the RICE protocol: Rest, Ice, Compression, and Elevation. Minor sprains are self-care or routine. Red flags include complete inability to bear weight, visible joint deformity, or numbness/tingling, which suggest a fracture or nerve damage requiring Urgent evaluation.",
+              "durationMs": 1
+            },
+            {
+              "stage": "reasoning",
+              "title": "Completed reasoning synthesis.",
+              "status": "completed",
+              "output": "Simulated reasoning: Analyzing \"I was having a leg pain, As I made my leg to crash in the door. whether I should see the doctor or I should use the home remedies\". Correlating with reference knowledge. Mild symptoms, suggested self-care.",
+              "durationMs": 0
+            },
+            {
+              "stage": "formatting",
+              "title": "Triage card created successfully.",
+              "status": "completed",
+              "durationMs": 0
+            }
+          ],
+          "createdAt": "2026-07-05T07:11:08.906Z",
+          "language": "en"
+        },
+        "timestamp": "2026-07-05T07:11:08.906Z"
+      }
+    ],
+    "createdAt": "2026-07-04T11:27:08.374Z",
+    "language": "en"
+  },
+  {
+    "id": "session_1783187337561",
+    "messages": [],
+    "createdAt": "2026-07-04T17:48:57.961Z"
+  },
+  {
+    "id": "session_1783187468057",
+    "messages": [],
+    "createdAt": "2026-07-04T17:51:08.062Z"
+  },
+  {
+    "id": "session_1783189111688",
+    "messages": [],
+    "createdAt": "2026-07-04T18:18:32.022Z"
+  },
+  {
+    "id": "session_1783223542571",
+    "messages": [],
+    "createdAt": "2026-07-05T03:52:22.651Z"
+  },
+  {
+    "id": "session_1783224327172",
+    "messages": [],
+    "createdAt": "2026-07-05T04:05:27.184Z"
+  },
+  {
+    "id": "session_1783225099528",
+    "messages": [],
+    "createdAt": "2026-07-05T04:18:19.987Z"
+  },
+  {
+    "id": "session_1783225136988",
+    "messages": [],
+    "createdAt": "2026-07-05T04:18:57.309Z"
+  },
+  {
+    "id": "session_1783225194637",
+    "messages": [],
+    "createdAt": "2026-07-05T04:19:54.640Z"
+  },
+  {
+    "id": "session_1783230982606",
+    "messages": [],
+    "createdAt": "2026-07-05T05:56:22.632Z"
+  },
+  {
+    "id": "session_1783231563875",
+    "messages": [],
+    "createdAt": "2026-07-05T06:06:03.880Z"
+  },
+  {
+    "id": "test_session_001",
+    "messages": [],
+    "createdAt": "2026-07-05T06:07:49.428Z"
+  },
+  {
+    "id": "session_1783232024905",
+    "messages": [],
+    "createdAt": "2026-07-05T06:13:44.905Z"
+  },
+  {
+    "id": "session_1783232283943",
+    "messages": [],
+    "createdAt": "2026-07-05T06:18:04.052Z"
+  },
+  {
+    "id": "session_1783232339347",
+    "messages": [],
+    "createdAt": "2026-07-05T06:18:59.442Z"
+  },
+  {
+    "id": "session_1783232402876",
+    "messages": [],
+    "createdAt": "2026-07-05T06:20:03.201Z"
+  },
+  {
+    "id": "session_1783232445603",
+    "messages": [],
+    "createdAt": "2026-07-05T06:20:45.944Z"
+  },
+  {
+    "id": "session_1783232488604",
+    "messages": [],
+    "createdAt": "2026-07-05T06:21:28.644Z"
+  },
+  {
+    "id": "session_1783232539720",
+    "messages": [],
+    "createdAt": "2026-07-05T06:22:19.724Z"
+  },
+  {
+    "id": "session_1783232577286",
+    "messages": [],
+    "createdAt": "2026-07-05T06:22:57.606Z"
+  },
+  {
+    "id": "session_1783232935601",
+    "messages": [],
+    "createdAt": "2026-07-05T06:28:55.675Z"
+  },
+  {
+    "id": "session_1783232977020",
+    "messages": [],
+    "createdAt": "2026-07-05T06:29:37.025Z"
+  },
+  {
+    "id": "session_1783233008787",
+    "messages": [],
+    "createdAt": "2026-07-05T06:30:08.791Z"
+  },
+  {
+    "id": "session_1783233584542",
+    "messages": [],
+    "createdAt": "2026-07-05T06:39:44.546Z"
+  },
+  {
+    "id": "session_1783234077891",
+    "messages": [],
+    "createdAt": "2026-07-05T06:47:57.894Z"
+  },
+  {
+    "id": "session_1783234292557",
+    "messages": [],
+    "createdAt": "2026-07-05T06:51:32.874Z"
+  },
+  {
+    "id": "session_1783234388156",
+    "messages": [],
+    "createdAt": "2026-07-05T06:53:08.204Z"
+  },
+  {
+    "id": "session_1783234442486",
+    "messages": [],
+    "createdAt": "2026-07-05T06:54:02.487Z"
+  },
+  {
+    "id": "session_1783234477322",
+    "messages": [],
+    "createdAt": "2026-07-05T06:54:37.323Z"
+  },
+  {
+    "id": "session_1783234565938",
+    "messages": [],
+    "createdAt": "2026-07-05T06:56:06.276Z"
+  },
+  {
+    "id": "session_1783234645213",
+    "messages": [],
+    "createdAt": "2026-07-05T06:57:25.216Z"
+  },
+  {
+    "id": "session_1783234661145",
+    "messages": [],
+    "createdAt": "2026-07-05T06:57:41.149Z"
+  },
+  {
+    "id": "session_1783234949284",
+    "messages": [],
+    "createdAt": "2026-07-05T07:02:29.595Z"
+  },
+  {
+    "id": "session_1783235285038",
+    "messages": [],
+    "createdAt": "2026-07-05T07:08:05.042Z"
+  },
+  {
+    "id": "session_1783235359295",
+    "messages": [],
+    "createdAt": "2026-07-05T07:09:19.620Z"
+  },
+  {
+    "id": "session_1783235376886",
+    "messages": [],
+    "createdAt": "2026-07-05T07:09:36.891Z"
+  },
+  {
+    "id": "session_1783235444234",
+    "messages": [],
+    "createdAt": "2026-07-05T07:10:44.236Z"
+  },
+  {
+    "id": "session_1783235531743",
+    "messages": [],
+    "createdAt": "2026-07-05T07:12:12.054Z"
+  },
+  {
+    "id": "session_1783235629863",
+    "messages": [],
+    "createdAt": "2026-07-05T07:13:50.169Z"
+  },
+  {
+    "id": "session_1783238896147",
+    "messages": [],
+    "createdAt": "2026-07-05T08:08:16.213Z"
+  }
+]
