@@ -11,7 +11,8 @@ import {
   Dna,
   ArrowLeft,
   Clock,
-  Loader2
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 import { ChatSession, Message, PipelineStageTrace } from './types';
 import { ImageUpload } from './components/ImageUpload';
@@ -48,6 +49,7 @@ export default function App() {
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [inputText, setInputText] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
   
   // Loading & Pipeline State
   const [isLoading, setIsLoading] = useState(false);
@@ -278,6 +280,7 @@ export default function App() {
 
   const handleSubmit = async (e?: React.FormEvent, customText?: string) => {
     if (e) e.preventDefault();
+    setPipelineError(null);
     
     const textToSend = customText || inputText;
     if (!textToSend.trim() || isLoading) return;
@@ -333,6 +336,14 @@ export default function App() {
     // Trigger sequential loading animations
     startLoadingAnimation(!!originalImage);
 
+    console.log('[Frontend] Outgoing triage request body:', {
+      sessionId,
+      messageId,
+      text: textToSend,
+      image: originalImage ? originalImage.substring(0, 100) + '...' : null,
+      language: i18n.language
+    });
+
     try {
       const response = await fetch('/api/triage', {
         method: 'POST',
@@ -357,12 +368,12 @@ export default function App() {
         await fetchSessionList();
       } else {
         const errorData = await response.json();
-        alert(`Triage Pipeline Error: ${errorData.error || 'Server calculation failed.'}`);
+        setPipelineError(errorData.error || errorData.details || 'Server calculation failed.');
       }
     } catch (err) {
       stopLoadingAnimation();
       console.error('Error submitting symptom triage:', err);
-      alert('Network failure contacting clinical analysis node. Please check your internet connection.');
+      setPipelineError('Network failure contacting clinical analysis node. Please check your internet connection.');
     }
   };
 
@@ -671,6 +682,24 @@ export default function App() {
           {/* Interactive Form Panel */}
           <div className="border-t border-slate-200 bg-white p-4 shrink-0 relative z-20 shadow-lg">
             <div className="max-w-3xl mx-auto space-y-3">
+              {/* Error banner */}
+              {pipelineError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-start gap-3 shadow-sm animate-fade-in">
+                  <AlertTriangle className="w-5 h-5 shrink-0 text-[#E0362F] mt-0.5" />
+                  <div className="flex-1 text-sm font-medium">
+                    <div className="font-bold text-[#E0362F]">Triage Pipeline Error</div>
+                    <p className="mt-0.5 text-slate-700">{pipelineError}</p>
+                  </div>
+                  <button 
+                    onClick={() => setPipelineError(null)}
+                    type="button"
+                    className="text-slate-400 hover:text-slate-600 transition-colors text-xs font-bold uppercase cursor-pointer shrink-0"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+
               {/* Image upload area */}
               <ImageUpload onImageSelected={setSelectedImage} />
 

@@ -42,6 +42,104 @@ const requireAuth = async (req: any, res: express.Response, next: express.NextFu
 // Set up JSON payload limit to handle base64 images safely
 app.use(express.json({ limit: '10mb' }));
 
+let globalAi: GoogleGenAI | null = null;
+
+function getAiClient(): GoogleGenAI {
+  if (!globalAi) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || apiKey.trim() === '') {
+      throw new Error('GEMINI_API_KEY is not configured or is invalid. Please configure a valid API key in the .env file.');
+    }
+    globalAi = new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+  }
+  return globalAi;
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs = 30000, context = 'API Call'): Promise<T> {
+  let timeoutId: NodeJS.Timeout;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const err = new Error(`${context} timed out after ${timeoutMs / 1000} seconds`);
+      (err as any).status = 408; // Request Timeout
+      reject(err);
+    }, timeoutMs);
+  });
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    clearTimeout(timeoutId);
+  });
+}
+
+async function callGeminiWithRetry<T>(
+  apiCallFn: () => Promise<T>,
+  context = 'Gemini Call',
+  timeoutMs = 30000,
+  maxRetries = 2
+): Promise<T> {
+  let attempt = 0;
+  let delay = 1000;
+
+  while (true) {
+    try {
+      attempt++;
+      return await withTimeout(apiCallFn(), timeoutMs, context);
+    } catch (err: any) {
+      const isAuthError = 
+        err.status === 400 || 
+        err.status === 401 || 
+        (err.message && (
+          err.message.includes('API key not valid') || 
+          err.message.includes('INVALID_ARGUMENT') || 
+          err.message.includes('API_KEY_INVALID')
+        ));
+
+      if (isAuthError || attempt > maxRetries) {
+        throw err;
+      }
+
+      console.warn(`[Retry] Attempt ${attempt} failed for ${context}. Retrying in ${delay}ms... Error:`, err.message || err);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay *= 2;
+    }
+  }
+}
+
+async function validateGeminiConnection() {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || apiKey.trim() === '') {
+    console.error('================================================================');
+    console.error('FATAL ERROR: GEMINI_API_KEY is not configured or is invalid.');
+    console.error('Please configure a valid API key in the .env file.');
+    console.error('================================================================');
+    process.exit(1);
+  }
+
+  try {
+    const ai = getAiClient();
+    // Run a minimal cheap call to check key validity
+    await callGeminiWithRetry(async () => {
+      return await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: 'ping'
+      });
+    }, 'Startup validation ping', 15000, 2);
+    console.log('[Gemini] Startup validation successful. Key is valid.');
+  } catch (err: any) {
+    console.error('================================================================');
+    console.error('FATAL ERROR: Failed to authenticate with Gemini API.');
+    console.error('Error details:', err.message || err);
+    console.error('Please check your GEMINI_API_KEY in the .env file.');
+    console.error('================================================================');
+    process.exit(1);
+  }
+}
+
 // ----------------------------------------------------
 // Knowledge Base Embedding Initialization (Lazy & Safe)
 // ----------------------------------------------------
@@ -69,33 +167,33 @@ async function ensureKBEmbeddings() {
 
     console.log('[KB] Initializing medical knowledge base embedding pipeline...');
     try {
-      const ai = new GoogleGenAI({
-        apiKey: key,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
-      });
+      const ai = getAiClient();
 
+      console.log(`[KB] Mapping over ${medicalKB.length} chunks...`);
       // Fetch embeddings in batches or parallel
       const promises = medicalKB.map(async (chunk) => {
         try {
-          const res = await ai.models.embedContent({
-            model: 'gemini-embedding-2-preview',
-            contents: `${chunk.topic}\n${chunk.text}`
-          });
-          const vector = (res as any).embedding?.values;
+          const res = await callGeminiWithRetry(async () => {
+            return await ai.models.embedContent({
+              model: 'gemini-embedding-2-preview',
+              contents: `${chunk.topic}\n${chunk.text}`
+            });
+          }, `Embedding chunk ${chunk.id}`, 30000, 2);
+
+          const vector = (res as any).embedding?.values || (res as any).embeddings?.[0]?.values;
           if (vector && vector.length > 0) {
             return { ...chunk, vector } as EmbeddedKBChunk;
+          } else {
+            console.log(`[KB] Chunk ${chunk.id} vector is empty or undefined:`, JSON.stringify(res));
           }
-        } catch (err) {
-          console.error(`[KB] Failed to embed chunk ${chunk.id}:`, err);
+        } catch (err: any) {
+          console.error(`[KB] Failed to embed chunk ${chunk.id}:`, err.message || err);
         }
         return null;
       });
 
       const results = await Promise.all(promises);
+      console.log(`[KB] results length: ${results.length}, non-null count: ${results.filter(x => x !== null).length}`);
       embeddedKB = results.filter((c): c is EmbeddedKBChunk => c !== null);
       console.log(`[KB] Successfully embedded and cached ${embeddedKB.length} chunks in memory.`);
     } catch (err) {
@@ -136,46 +234,43 @@ function fallbackKeywordSearch(query: string, limit = 3): EmbeddedKBChunk[] {
 }
 
 // Perform Vector retrieval with keyword fallback
-async function retrieveContext(ai: GoogleGenAI | null, queryText: string, limit = 3): Promise<{ context: string; chunks: { id: string; topic: string; source: string }[]; maxSimilarity: number }> {
-  try {
-    await ensureKBEmbeddings();
+async function retrieveContext(queryText: string, limit = 3): Promise<{ context: string; chunks: { id: string; topic: string; source: string }[]; maxSimilarity: number }> {
+  await ensureKBEmbeddings();
+  const ai = getAiClient();
 
-    if (embeddedKB.length === 0 || !ai) {
-      console.log('[RAG] Embedded database empty. Running keyword fallback...');
-      const fallback = fallbackKeywordSearch(queryText, limit);
-      const res = formatRetrievalResults(fallback);
-      return { ...res, maxSimilarity: fallback.length > 0 ? 0.7 : 0.0 };
-    }
+  if (embeddedKB.length === 0) {
+    console.log('[RAG] Embedded database empty. Running keyword fallback...');
+    const fallback = fallbackKeywordSearch(queryText, limit);
+    const res = formatRetrievalResults(fallback);
+    return { ...res, maxSimilarity: fallback.length > 0 ? 0.7 : 0.0 };
+  }
 
-    const res = await ai.models.embedContent({
+  const res = await callGeminiWithRetry(async () => {
+    return await ai.models.embedContent({
       model: 'gemini-embedding-2-preview',
       contents: queryText
     });
-    const queryVector = (res as any).embedding?.values;
+  }, 'Query Embedding', 30000, 2);
 
-    if (!queryVector || queryVector.length === 0) {
-      throw new Error('Could not generate query embedding');
-    }
+  const queryVector = (res as any).embedding?.values || (res as any).embeddings?.[0]?.values;
 
-    const scored = embeddedKB.map(chunk => ({
-      chunk,
-      similarity: getCosineSimilarity(queryVector, chunk.vector)
-    }));
-
-    // Sort by highest similarity
-    scored.sort((a, b) => b.similarity - a.similarity);
-
-    const topMatches = scored.slice(0, limit).map(s => s.chunk);
-    const maxSimilarity = scored[0]?.similarity || 0;
-    console.log(`[RAG] Retrieved ${topMatches.length} matching medical context chunks. Top score: ${maxSimilarity.toFixed(4)}`);
-    const formatted = formatRetrievalResults(topMatches);
-    return { ...formatted, maxSimilarity };
-  } catch (err) {
-    console.error('[RAG] Retrieval failed, using fallback:', err);
-    const fallback = fallbackKeywordSearch(queryText, limit);
-    const formatted = formatRetrievalResults(fallback);
-    return { ...formatted, maxSimilarity: fallback.length > 0 ? 0.7 : 0.0 };
+  if (!queryVector || queryVector.length === 0) {
+    throw new Error('Could not generate query embedding');
   }
+
+  const scored = embeddedKB.map(chunk => ({
+    chunk,
+    similarity: getCosineSimilarity(queryVector, chunk.vector)
+  }));
+
+  // Sort by highest similarity
+  scored.sort((a, b) => b.similarity - a.similarity);
+
+  const topMatches = scored.slice(0, limit).map(s => s.chunk);
+  const maxSimilarity = scored[0]?.similarity || 0;
+  console.log(`[RAG] Retrieved ${topMatches.length} matching medical context chunks. Top score: ${maxSimilarity.toFixed(4)}`);
+  const formatted = formatRetrievalResults(topMatches);
+  return { ...formatted, maxSimilarity };
 }
 
 function formatRetrievalResults(chunks: (EmbeddedKBChunk | (typeof medicalKB[0] & { vector: number[] }))[]) {
@@ -223,7 +318,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Auth routes
-app.post('/api/auth/signup', (req, res) => {
+app.post('/api/auth/signup', async (req, res) => {
   const { name, email, password, language_preference = 'en' } = req.body;
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Name, email, and password are required.' });
@@ -235,7 +330,7 @@ app.post('/api/auth/signup', (req, res) => {
   if (password.length < 6) {
     return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
   }
-  const existingUser = db.getUserByEmail(email);
+  const existingUser = await db.getUserByEmail(email);
   if (existingUser) {
     return res.status(400).json({ error: 'Email is already registered.' });
   }
@@ -243,7 +338,7 @@ app.post('/api/auth/signup', (req, res) => {
   const salt = bcrypt.genSaltSync(10);
   const password_hash = bcrypt.hashSync(password, salt);
 
-  const user = db.createUser({
+  const user = await db.createUser({
     name,
     email,
     password_hash,
@@ -262,12 +357,12 @@ app.post('/api/auth/signup', (req, res) => {
   });
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required.' });
   }
-  const user = db.getUserByEmail(email);
+  const user = await db.getUserByEmail(email);
   if (!user) {
     return res.status(401).json({ error: 'Invalid email or password.' });
   }
@@ -293,14 +388,14 @@ app.get('/api/auth/me', requireAuth, (req: any, res) => {
 });
 
 // List historical sessions
-app.get('/api/sessions', requireAuth, (req: any, res) => {
-  const sessions = db.listSessions(req.user.id);
+app.get('/api/sessions', requireAuth, async (req: any, res) => {
+  const sessions = await db.listSessions(req.user.id);
   res.json(sessions);
 });
 
 // Get detailed session info
-app.get('/api/sessions/:id', requireAuth, (req: any, res) => {
-  const session = db.getSession(req.params.id);
+app.get('/api/sessions/:id', requireAuth, async (req: any, res) => {
+  const session = await db.getSession(req.params.id);
   if (!session) {
     return res.status(404).json({ error: 'Session not found' });
   }
@@ -311,50 +406,37 @@ app.get('/api/sessions/:id', requireAuth, (req: any, res) => {
 });
 
 // Create a new session
-app.post('/api/sessions', requireAuth, (req: any, res) => {
+app.post('/api/sessions', requireAuth, async (req: any, res) => {
   const { id } = req.body;
   if (!id) {
     return res.status(400).json({ error: 'Session ID is required' });
   }
-  const session = db.createSession(id, req.user.id);
+  const session = await db.createSession(id, req.user.id);
   res.json(session);
 });
 
 // Triage endpoint: Executing the 4-Stage pipeline
 app.post('/api/triage', requireAuth, async (req: any, res) => {
-  const { sessionId, messageId, text, image, language = 'en' } = req.body;
+  try {
+    const { sessionId, messageId, text, image, language = 'en' } = req.body;
 
   if (!sessionId || !text) {
     return res.status(400).json({ error: 'sessionId and text are required.' });
   }
 
   // Validate session ownership
-  const session = db.getSession(sessionId);
+  const session = await db.getSession(sessionId);
   if (session && session.userId && session.userId !== req.user.id) {
     return res.status(403).json({ error: 'Access denied to this session.' });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  let ai: GoogleGenAI | null = null;
-  if (apiKey) {
-    ai = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
-  } else {
-    console.warn('[Server] GEMINI_API_KEY is not defined. Using simulated AI logic.');
-  }
+  const ai = getAiClient();
 
   // 1. Intent Classification Step
   let intent: 'symptom_triage' | 'general_health_question' | 'follow_up' | 'out_of_scope' = 'symptom_triage';
-  if (ai) {
-    try {
-      console.log(`[Intent Classify] Categorizing input: "${text.substring(0, 60)}..."`);
-      const classificationPrompt = `You are a medical intent classification assistant. Read the user message below and classify it into exactly one of these four categories:
+  try {
+    console.log(`[Intent Classify] Categorizing input: "${text.substring(0, 60)}..."`);
+    const classificationPrompt = `You are a medical intent classification assistant. Read the user message below and classify it into exactly one of these four categories:
 - "symptom_triage": The user is describing or asking about a specific symptom they are experiencing right now or seeking a triage recommendation.
 - "general_health_question": The user is asking a general health, wellness, medical fact, or biological question not tied to an active personal symptom triage.
 - "follow_up": The user is asking a follow-up question that builds on previous messages (e.g. asking "what about dizziness too?", "does that mean...", or referring to previous statements).
@@ -364,19 +446,24 @@ User Message: "${text}"
 
 Respond with ONLY one word from this list: symptom_triage, general_health_question, follow_up, out_of_scope. Do not include any punctuation, formatting, or extra text.`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+    const response = await callGeminiWithRetry(async () => {
+      return await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
         contents: classificationPrompt
       });
+    }, 'Intent Classification', 30000, 2);
 
-      const parsedIntent = response.text?.trim().toLowerCase();
-      if (parsedIntent && ['symptom_triage', 'general_health_question', 'follow_up', 'out_of_scope'].includes(parsedIntent)) {
-        intent = parsedIntent as any;
-      }
-      console.log(`[Intent Classify] Detected intent: ${intent}`);
-    } catch (err) {
-      console.error('[Intent Classify] Classification failed, defaulting to symptom_triage:', err);
+    const parsedIntent = response.text?.trim().toLowerCase();
+    if (parsedIntent && ['symptom_triage', 'general_health_question', 'follow_up', 'out_of_scope'].includes(parsedIntent)) {
+      intent = parsedIntent as any;
     }
+    console.log(`[Intent Classify] Detected intent: ${intent}`);
+  } catch (err: any) {
+    console.error('[Intent Classify] Classification failed:', err);
+    return res.status(502).json({
+      error: 'AI service is temporarily unavailable',
+      details: err.message || 'Intent classification failed'
+    });
   }
 
   // 2. Route Out-of-Scope Requests Immediately
@@ -422,9 +509,9 @@ Respond with ONLY one word from this list: symptom_triage, general_health_questi
       timestamp: new Date().toISOString()
     };
 
-    db.addMessage(sessionId, userMessage);
-    db.setSessionLanguage(sessionId, language);
-    const updatedSession = db.addMessage(sessionId, assistantMessage);
+    await db.addMessage(sessionId, userMessage);
+    await db.setSessionLanguage(sessionId, language);
+    const updatedSession = await db.addMessage(sessionId, assistantMessage);
 
     return res.json({
       triageResult: finalTriageResult,
@@ -434,22 +521,29 @@ Respond with ONLY one word from this list: symptom_triage, general_health_questi
 
   // Pre-process: Translate Tamil query to English internally for RAG accuracy
   let translatedText = text;
-  if (language === 'ta' && ai) {
+  if (language === 'ta') {
     try {
       console.log(`[Language] Translating query from Tamil to English for retrieval...`);
-      const translationRes = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: `Translate the following patient symptom description into clear, clinical English. Return ONLY the translated English text, with no extra commentary or introductory text:
-        
-        "${text}"`
-      });
+      const translationRes = await callGeminiWithRetry(async () => {
+        return await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: `Translate the following patient symptom description into clear, clinical English. Return ONLY the translated English text, with no extra commentary or introductory text:
+          
+          "${text}"`
+        });
+      }, 'Tamil to English translation', 30000, 2);
+
       const resText = translationRes.text?.trim();
       if (resText) {
         translatedText = resText;
       }
       console.log(`[Language] Translated input: "${translatedText}"`);
-    } catch (err) {
-      console.error('[Language] Translation failed, using original text as fallback:', err);
+    } catch (err: any) {
+      console.error('[Language] Translation failed:', err);
+      return res.status(502).json({
+        error: 'AI service is temporarily unavailable',
+        details: err.message || 'Translation failed'
+      });
     }
   }
 
@@ -473,10 +567,6 @@ Respond with ONLY one word from this list: symptom_triage, general_health_questi
     });
 
     try {
-      if (!ai) {
-        throw new Error('Gemini API is unconfigured.');
-      }
-
       // Parse data URI to extract base64 parts
       const matches = image.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,(.+)$/);
       let mimeType = 'image/png';
@@ -496,42 +586,44 @@ Respond with ONLY one word from this list: symptom_triage, general_health_questi
 }
 If a field has no data, return an empty array. Never infer a diagnosis here.`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: [
-          {
-            inlineData: {
-              mimeType,
-              data: base64Data
-            }
-          },
-          prompt
-        ],
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              medicines: { type: Type.ARRAY, items: { type: Type.STRING } },
-              lab_values: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    name: { type: Type.STRING },
-                    value: { type: Type.STRING },
-                    unit: { type: Type.STRING }
-                  },
-                  required: ['name', 'value', 'unit']
-                }
-              },
-              visible_symptoms: { type: Type.ARRAY, items: { type: Type.STRING } },
-              document_type: { type: Type.STRING }
+      const response = await callGeminiWithRetry(async () => {
+        return await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: [
+            {
+              inlineData: {
+                mimeType,
+                data: base64Data
+              }
             },
-            required: ['medicines', 'lab_values', 'visible_symptoms', 'document_type']
+            prompt
+          ],
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                medicines: { type: Type.ARRAY, items: { type: Type.STRING } },
+                lab_values: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      name: { type: Type.STRING },
+                      value: { type: Type.STRING },
+                      unit: { type: Type.STRING }
+                    },
+                    required: ['name', 'value', 'unit']
+                  }
+                },
+                visible_symptoms: { type: Type.ARRAY, items: { type: Type.STRING } },
+                document_type: { type: Type.STRING }
+              },
+              required: ['medicines', 'lab_values', 'visible_symptoms', 'document_type']
+            }
           }
-        }
-      });
+        });
+      }, 'Image Data Extraction', 30000, 2);
 
       const extractedJSON = JSON.parse(response.text || '{}');
       extractedData = extractedJSON as MedicalExtraction;
@@ -545,13 +637,10 @@ If a field has no data, return an empty array. Never infer a diagnosis here.`;
       };
     } catch (err: any) {
       console.error('[Pipeline Stage 1] Image extraction failed:', err);
-      pipelineTrace[0] = {
-        stage: 'extraction',
-        title: 'Image reading encountered an error.',
-        status: 'failed',
-        output: err.message || 'Unknown extraction error',
-        durationMs: Date.now() - stage1Start
-      };
+      return res.status(502).json({
+        error: 'AI service is temporarily unavailable',
+        details: err.message || 'Image extraction failed'
+      });
     }
   } else {
     pipelineTrace.push({
@@ -588,7 +677,7 @@ If a field has no data, return an empty array. Never infer a diagnosis here.`;
       }
     }
 
-    const searchResult = await retrieveContext(ai, combinedQuery, 3);
+    const searchResult = await retrieveContext(combinedQuery, 3);
     retrievedContext = searchResult.context;
     retrievedChunks = searchResult.chunks;
     maxSimilarity = searchResult.maxSimilarity;
@@ -602,13 +691,10 @@ If a field has no data, return an empty array. Never infer a diagnosis here.`;
     };
   } catch (err: any) {
     console.error('[Pipeline Stage 2] Retrieval failed:', err);
-    pipelineTrace[pipelineTrace.length - 1] = {
-      stage: 'retrieval',
-      title: 'Failed to search medical reference catalog.',
-      status: 'failed',
-      output: err.message || 'Unknown retrieval error',
-      durationMs: Date.now() - stage2Start
-    };
+    return res.status(502).json({
+      error: 'AI service is temporarily unavailable',
+      details: err.message || 'Knowledge retrieval failed'
+    });
   }
 
   // 3. Relevance Score Evaluation
@@ -628,24 +714,12 @@ If a field has no data, return an empty array. Never infer a diagnosis here.`;
   let reasoningOutput = '';
   try {
     const targetLangName = language === 'ta' ? 'Tamil' : 'English';
-    if (!ai) {
-      // Offline fallback simulations
-      if (hasEmergencyKeywords) {
-        reasoningOutput = language === 'ta'
-          ? 'அவசர நிலைமை: மார்பு வலி, தீவிர மூச்சுத் திணறல் அல்லது கடுமையான இரத்தப்போக்கு போன்ற ஆபத்தான அறிகுறிகள் கண்டறியப்பட்டுள்ளன. உடனடி அவசர மருத்துவ உதவி தேவைப்படுகிறது.'
-          : 'CRITICAL EMERGENCY: Detected vital warning signs (e.g. chest discomfort, severe dyspnea, or severe bleeding). Immediate medical dispatch required. Bypassing clinical analysis for vital safety reasons.';
-      } else {
-        reasoningOutput = language === 'ta'
-          ? `உருவகப்படுத்தப்பட்ட பகுப்பாய்வு: "${text}" ஆராயப்படுகிறது. லேசான அறிகுறிகள், பொது மருத்துவரை அணுகவும்.`
-          : `Simulated reasoning: Analyzing "${text}". Correlating with reference knowledge. Mild symptoms, suggested self-care.`;
-      }
-    } else {
-      let systemInstruction = '';
-      let contentsPrompt = '';
+    let systemInstruction = '';
+    let contentsPrompt = '';
 
-      if (intent === 'general_health_question') {
-        systemInstruction = `You are a professional medical information assistant. Provide a simple, clear, conversational answer to the patient's general health/wellness question in ${targetLangName}.`;
-        contentsPrompt = `You are a medical assistant. Review the following general health or wellness question and answer it in a clear, friendly, conversational manner.
+    if (intent === 'general_health_question') {
+      systemInstruction = `You are a professional medical information assistant. Provide a simple, clear, conversational answer to the patient's general health/wellness question in ${targetLangName}.`;
+      contentsPrompt = `You are a medical assistant. Review the following general health or wellness question and answer it in a clear, friendly, conversational manner.
 
 User Input:
 ${translatedText}
@@ -656,23 +730,24 @@ ${retrievedContext}`}
 Rules:
 1. Provide a direct, comforting answer.
 2. Respond in ${targetLangName}.`;
-      } else if (intent === 'follow_up') {
-        // Retrieve session history context
-        let historyContext = '';
-        const sessionObj = db.getSession(sessionId);
-        if (sessionObj && sessionObj.messages && sessionObj.messages.length > 0) {
-          const recent = sessionObj.messages.slice(-4);
-          historyContext = recent.map(m => `${m.role === 'user' ? 'Patient' : 'Assistant'}: ${m.text}`).join('\n');
-        }
+    } else if (intent === 'follow_up') {
+      let historyContext = '';
+      const sessionObj = await db.getSession(sessionId);
+      if (sessionObj && sessionObj.messages && sessionObj.messages.length > 0) {
+        const recent = sessionObj.messages.slice(-4);
+        historyContext = recent.map(m => `${m.role === 'user' ? 'Patient' : 'Assistant'}: ${m.text}`).join('\n');
+      }
 
-        systemInstruction = `You are a professional medical assistant continuing a conversation. Refer to the recent dialogue history to contextly answer the patient's follow-up query in ${targetLangName}.`;
-        contentsPrompt = `You are a medical assistant. The patient is asking a follow-up query. Review the conversation history below and the new query, then reason step-by-step to provide a coherent answer.
+      systemInstruction = `You are a professional medical assistant continuing a conversation. Refer to the recent dialogue history to contextly answer the patient's follow-up query in ${targetLangName}.`;
+      contentsPrompt = `You are a medical assistant. The patient is asking a follow-up query. Review the conversation history below and the new query, then reason step-by-step to provide a coherent answer.
 
 Conversation History:
 ${historyContext}
 
-New User Input:
-${translatedText}
+ACTUAL USER INPUT (patient's described symptoms):
+"${translatedText}"
+
+IMPORTANT instruction: The above text under ACTUAL USER INPUT is the ONLY case you are triaging right now. Do not copy or reuse any other symptoms, fever data, or examples that are not present in this ACTUAL USER INPUT.
 
 ${isLowRelevance ? `IMPORTANT: The medical reference base did not return relevant grounding resources for this follow-up query. You MUST state clearly that you do not have enough grounded information from the database to answer confidently, rather than trying to speculate or answer using weak/irrelevant context, and encourage them to consult a healthcare provider.` : `Clinically Verified Grounding Reference (Knowledge Base):
 ${retrievedContext}`}
@@ -680,13 +755,14 @@ ${retrievedContext}`}
 Rules:
 1. Ensure your response connects smoothly to the previous context.
 2. Respond in ${targetLangName}.`;
-      } else {
-        // default: symptom_triage
-        systemInstruction = `You are a professional medical triage support agent. Provide objective, clear, structured clinical analysis step-by-step in ${targetLangName}.`;
-        contentsPrompt = `You are a highly analytical, cautious clinical triage assistant. Review the symptoms provided and reason step-by-step through the clinical urgency. DO NOT provide a definitive medical diagnosis. Identify warning flags and recommend appropriate specialties.
-        
-User Input (translated to English if necessary):
-${translatedText}
+    } else {
+      systemInstruction = `You are a professional medical triage support agent. Provide objective, clear, structured clinical analysis step-by-step in ${targetLangName}.`;
+      contentsPrompt = `You are a highly analytical, cautious clinical triage assistant. Review the symptoms provided and reason step-by-step through the clinical urgency. DO NOT provide a definitive medical diagnosis. Identify warning flags and recommend appropriate specialties.
+      
+ACTUAL USER INPUT (patient's described symptoms):
+"${translatedText}"
+
+IMPORTANT instruction: The above text under ACTUAL USER INPUT is the ONLY case you are triaging right now. Do not copy or reuse any other symptoms, fever data, or examples that are not present in this ACTUAL USER INPUT.
 
 ${extractedData ? `Extracted facts from attached medical report/image:\n${JSON.stringify(extractedData, null, 2)}` : ''}
 
@@ -698,18 +774,20 @@ Rules:
 2. If symptoms suggest critical situations (chest pain, shortness of breath, FAST stroke signs, or severe bleeding), classify as Emergency immediately.
 3. Be transparent and list your clinical deductions in 2-3 short, clear bullet points.
 4. Respond in ${targetLangName}. Keep medical terms accurate; add the English term in parentheses on first use if a direct translation could be ambiguous.`;
-      }
+    }
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+    console.log('[Pipeline Stage 3] Reasoning Prompt sent to Gemini:\n', contentsPrompt);
+    const response = await callGeminiWithRetry(async () => {
+      return await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
         contents: contentsPrompt,
         config: {
           systemInstruction
         }
       });
+    }, 'Clinical Reasoning', 30000, 2);
 
-      reasoningOutput = response.text || '';
-    }
+    reasoningOutput = response.text || '';
 
     pipelineTrace[pipelineTrace.length - 1] = {
       stage: 'reasoning',
@@ -727,6 +805,7 @@ Rules:
       output: err.message || 'Unknown reasoning error',
       durationMs: Date.now() - stage3Start
     };
+    throw err;
   }
 
   // ----------------------------------------------------
@@ -740,7 +819,7 @@ Rules:
   });
 
   let finalTriageResult: TriageResult;
-  try {
+    // Start Response Formatting
     const targetLangName = language === 'ta' ? 'Tamil' : 'English';
     if (hasEmergencyKeywords) {
       // Immediate emergency safety override to prevent any model lag/mistake
@@ -787,38 +866,6 @@ Rules:
           detectedIntent: intent
         };
       }
-    } else if (!ai) {
-      if (language === 'ta') {
-        finalTriageResult = {
-          id: `triage_${Date.now()}`,
-          sessionId,
-          urgencyLevel: 'Routine',
-          explanation: 'பகுப்பாய்வு உருவகப்படுத்துதல்: உங்கள் அறிகுறிகள் மிதமானவை. வழக்கமான மருத்துவ ஆலோசனை அறிவுறுத்தப்படுகிறது.',
-          redFlags: ['காய்ச்சல் 103°F மேல்', 'மூச்சுத் திணறல்'],
-          recommendedSpecialist: 'பொது மருத்துவர் (General Practitioner)',
-          disclaimer: 'உருவகப்படுத்தப்பட்ட முன்னோட்ட பயன்முறை. உரிமம் பெற்ற மருத்துவரை அணுகவும்.',
-          extractedData,
-          pipelineTrace,
-          createdAt: new Date().toISOString(),
-          language,
-          detectedIntent: intent
-        };
-      } else {
-        finalTriageResult = {
-          id: `triage_${Date.now()}`,
-          sessionId,
-          urgencyLevel: 'Routine',
-          explanation: 'Simulated triage output: Your symptoms represent a mild routine health profile. Regular GP checkup recommended.',
-          redFlags: ['Fever over 103°F', 'Shortness of breath'],
-          recommendedSpecialist: 'General Practitioner',
-          disclaimer: 'Simulated preview mode. Consult a licensed doctor.',
-          extractedData,
-          pipelineTrace,
-          createdAt: new Date().toISOString(),
-          language,
-          detectedIntent: intent
-        };
-      }
     } else {
       const prompt = `You are a formatting assistant. Take the clinical reasoning analysis below and format it into a structured, highly compliant, user-friendly JSON schema.
       
@@ -834,24 +881,26 @@ Format strictly to this JSON model and return nothing else:
   "disclaimer": "This is not a medical diagnosis. Consult a licensed healthcare provider written in the target language (${targetLangName})."
 }`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              urgency_level: { type: Type.STRING },
-              explanation: { type: Type.STRING },
-              red_flags: { type: Type.ARRAY, items: { type: Type.STRING } },
-              recommended_specialist: { type: Type.STRING },
-              disclaimer: { type: Type.STRING }
-            },
-            required: ['urgency_level', 'explanation', 'red_flags', 'recommended_specialist', 'disclaimer']
+      const response = await callGeminiWithRetry(async () => {
+        return await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                urgency_level: { type: Type.STRING },
+                explanation: { type: Type.STRING },
+                red_flags: { type: Type.ARRAY, items: { type: Type.STRING } },
+                recommended_specialist: { type: Type.STRING },
+                disclaimer: { type: Type.STRING }
+              },
+              required: ['urgency_level', 'explanation', 'red_flags', 'recommended_specialist', 'disclaimer']
+            }
           }
-        }
-      });
+        });
+      }, 'Response Formatting', 30000, 2);
 
       const formattedJSON = JSON.parse(response.text || '{}');
       
@@ -905,9 +954,9 @@ Format strictly to this JSON model and return nothing else:
       timestamp: new Date().toISOString()
     };
 
-    db.addMessage(sessionId, userMessage);
-    db.setSessionLanguage(sessionId, language);
-    const updatedSession = db.addMessage(sessionId, assistantMessage);
+    await db.addMessage(sessionId, userMessage);
+    await db.setSessionLanguage(sessionId, language);
+    const updatedSession = await db.addMessage(sessionId, assistantMessage);
 
     res.json({
       triageResult: finalTriageResult,
@@ -915,37 +964,40 @@ Format strictly to this JSON model and return nothing else:
     });
 
   } catch (err: any) {
-    console.error('[Pipeline Stage 4] Formatting failed:', err);
-    res.status(500).json({ error: 'Failed to generate formatted triage summary card.', details: err.message });
+    console.error('[Pipeline Triage Route] Execution failed:', err);
+    res.status(503).json({
+      error: 'AI service is temporarily unavailable',
+      details: err.message || 'Server encountered an error during triage pipeline processing'
+    });
   }
 });
 
 // Clear session history for authenticated user
-app.post('/api/clear-history', requireAuth, (req: any, res) => {
-  db.clearUserSessions(req.user.id);
+app.post('/api/clear-history', requireAuth, async (req: any, res) => {
+  await db.clearUserSessions(req.user.id);
   res.json({ success: true, message: 'All session histories have been successfully cleared.' });
 });
 
 // Emergency Contact & SOS Alert Endpoints
-app.post('/api/emergency-contact', requireAuth, (req: any, res) => {
+app.post('/api/emergency-contact', requireAuth, async (req: any, res) => {
   const { sessionId, name, phone, email, relation, consentGivenAt } = req.body;
   if (!sessionId || !name || !phone || !relation || !consentGivenAt) {
     return res.status(400).json({ error: 'Missing required contact fields or consent.' });
   }
-  const session = db.getSession(sessionId);
+  const session = await db.getSession(sessionId);
   if (session && session.userId && session.userId !== req.user.id) {
     return res.status(403).json({ error: 'Access denied to this session.' });
   }
-  const contact = db.saveEmergencyContact({ sessionId, name, phone, email, relation, consentGivenAt });
+  const contact = await db.saveEmergencyContact({ sessionId, name, phone, email, relation, consentGivenAt });
   res.json({ success: true, contact });
 });
 
-app.get('/api/emergency-contact/:sessionId', requireAuth, (req: any, res) => {
-  const session = db.getSession(req.params.sessionId);
+app.get('/api/emergency-contact/:sessionId', requireAuth, async (req: any, res) => {
+  const session = await db.getSession(req.params.sessionId);
   if (session && session.userId && session.userId !== req.user.id) {
     return res.status(403).json({ error: 'Access denied to this session.' });
   }
-  const contact = db.getEmergencyContact(req.params.sessionId);
+  const contact = await db.getEmergencyContact(req.params.sessionId);
   if (!contact) {
     return res.status(404).json({ error: 'No contact found for this session.' });
   }
@@ -958,12 +1010,12 @@ app.post('/api/emergency-alert', requireAuth, async (req: any, res) => {
     return res.status(400).json({ error: 'sessionId is required.' });
   }
 
-  const session = db.getSession(sessionId);
+  const session = await db.getSession(sessionId);
   if (session && session.userId && session.userId !== req.user.id) {
     return res.status(403).json({ error: 'Access denied to this session.' });
   }
 
-  const contact = db.getEmergencyContact(sessionId);
+  const contact = await db.getEmergencyContact(sessionId);
   if (!contact) {
     return res.status(404).json({ error: 'No emergency contact registered for this session.' });
   }
@@ -979,7 +1031,7 @@ app.post('/api/emergency-alert', requireAuth, async (req: any, res) => {
       timestamp
     });
 
-    const alertLog = db.logEmergencyAlert({
+    const alertLog = await db.logEmergencyAlert({
       id: `alert_${Date.now()}`,
       sessionId,
       contactName: contact.name,
@@ -1001,6 +1053,8 @@ app.post('/api/emergency-alert', requireAuth, async (req: any, res) => {
 // Vite Dev Server / Static Ingress Configuration
 // ----------------------------------------------------
 async function initializeServer() {
+  await validateGeminiConnection();
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
