@@ -113,5 +113,19 @@ export const medicalKB: KBChunk[] = [
     text: 'UTI is an infection of the urinary system, typically the bladder. Symptoms include strong, persistent urge to urinate, burning sensation when urinating, cloudy or strong-smelling urine, or pelvic pain. UTIs require an appointment with a general practitioner for prescription antibiotics. If symptoms include back pain, side pain (flank pain), high fever, chills, nausea, or vomiting, the infection may have spread to the kidneys (pyelonephritis), which is Urgent.',
     source: 'Urology Care Foundation',
     urgencyHint: 'Routine'
+  },
+  {
+    id: 'kb_trauma_fracture',
+    topic: 'Physical Trauma, Accidents, and Fractures',
+    text: 'Physical trauma from accidents, falls, or collisions can cause lacerations, bruising, or skeletal fractures. Suspect a fracture if there is severe localized pain, visible deformity, immediate swelling, inability to bear weight or move the limb, or a grating sensation. Open fractures (bone protruding through skin) and injuries with signs of arterial damage (cold, pale, or pulseless limb) are medical emergencies requiring immediate emergency department evaluation.',
+    source: 'American Academy of Orthopaedic Surgeons Guidelines',
+    urgencyHint: 'Emergency'
+  },
+  {
+    id: 'kb_head_injury',
+    topic: 'Head Injury, Concussion, and Traumatic Brain Injury',
+    text: 'Head trauma from impacts, falls, or vehicular accidents can lead to concussions or intracranial hemorrhage. Red flags include loss of consciousness (even briefly), persistent vomiting, worsening headache, confusion, irritability, slurred speech, clear fluid draining from the nose or ears, dilated or unequal pupils, or seizures. Any head injury with these warning signs is an absolute medical emergency requiring immediate diagnostic imaging and neurological assessment.',
+    source: 'CDC Heads Up Guidelines',
+    urgencyHint: 'Emergency'
   }
 ];

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { motion, useScroll, useTransform } from 'motion/react';
+import { motion } from 'motion/react';
 import { 
   ArrowRight, 
   Lock, 
@@ -165,17 +165,7 @@ export const LandingPage: React.FC<Props> = ({ onGetStarted }) => {
 
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { scrollY } = useScroll();
 
-  // Left stethoscope: starts above viewport, drops and settles within first 400px of scroll
-  const leftY = useTransform(scrollY, [0, 400], [-280, 100]);
-  const leftRotate = useTransform(scrollY, [0, 400], [-20, 6]);
-  const leftOpacity = useTransform(scrollY, [0, 60, 400], [0.15, 0.7, 1]);
-
-  // Right stethoscope: starts above viewport, drops with slight offset for stagger feel
-  const rightY = useTransform(scrollY, [0, 450], [-240, 60]);
-  const rightRotate = useTransform(scrollY, [0, 450], [18, -8]);
-  const rightOpacity = useTransform(scrollY, [0, 80, 450], [0.1, 0.65, 1]);
 
   return (
     <div id="landing-page" ref={containerRef} className="bg-[#F3F1EC] min-h-screen text-[#0E0E0E] relative overflow-x-hidden flex flex-col selection:bg-[#E0362F] selection:text-white">
@@ -187,31 +177,7 @@ export const LandingPage: React.FC<Props> = ({ onGetStarted }) => {
         }
       `}</style>
 
-      {/* LEFT stethoscope — parallax drops from top on scroll */}
-      <motion.div
-        className="fixed top-0 left-0 z-10 pointer-events-none"
-        style={{ y: leftY, rotate: leftRotate, opacity: leftOpacity }}
-      >
-        <img
-          src="/stethoscope.png"
-          alt=""
-          className="w-40 xl:w-52 select-none"
-          style={{ filter: 'grayscale(100%) contrast(1.1)' }}
-        />
-      </motion.div>
 
-      {/* RIGHT stethoscope — parallax drops from top on scroll, mirrored */}
-      <motion.div
-        className="fixed top-0 right-0 z-10 pointer-events-none"
-        style={{ y: rightY, rotate: rightRotate, opacity: rightOpacity }}
-      >
-        <img
-          src="/stethoscope.png"
-          alt=""
-          className="w-40 xl:w-52 select-none"
-          style={{ filter: 'grayscale(100%) contrast(1.1)', transform: 'scaleX(-1)' }}
-        />
-      </motion.div>
 
       {/* 2.1 Navbar - Floating Round Dark Pill */}
       <div className="fixed top-6 left-0 right-0 w-full max-w-5xl mx-auto px-4 z-50">
