@@ -21,6 +21,7 @@ export const SignupPage: React.FC<Props> = ({ onSwitchToLogin, onBackToLanding }
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log("handleSubmit called");
     e.preventDefault();
     setError(null);
 

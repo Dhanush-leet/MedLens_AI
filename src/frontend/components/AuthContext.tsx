@@ -78,7 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [API_BASE_URL]);
 
   const signup = useCallback(async (name: string, email: string, password: string, lang?: 'en' | 'ta') => {
     console.log("Signup function called");
@@ -103,7 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [API_BASE_URL]);
 
   const logout = useCallback(() => {
     localStorage.removeItem('medlens_auth_token');
