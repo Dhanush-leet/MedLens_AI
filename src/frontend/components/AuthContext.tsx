@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { UserInfo } from '../types';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
+
 interface AuthContextType {
   user: UserInfo | null;
   token: string | null;
@@ -20,7 +23,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const verifyToken = useCallback(async (jwtToken: string) => {
     try {
-      const res = await fetch('/api/auth/me', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
         headers: {
           'Authorization': `Bearer ${jwtToken}`
         }
@@ -53,9 +56,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [verifyToken]);
 
   const login = useCallback(async (email: string, password: string) => {
+    console.log("Login function called");
     setIsLoading(true);
     try {
-      const res = await fetch('/api/auth/login', {
+      console.log("Calling API:", `${API_BASE_URL}/api/auth/login`);
+      const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -76,9 +81,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signup = useCallback(async (name: string, email: string, password: string, lang?: 'en' | 'ta') => {
+    console.log("Signup function called");
     setIsLoading(true);
     try {
-      const res = await fetch('/api/auth/signup', {
+      console.log("Calling API:", `${API_BASE_URL}/api/auth/signup`);
+      const res = await fetch(`${API_BASE_URL}/api/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password, language_preference: lang || 'en' })

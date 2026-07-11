@@ -4,6 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { EmergencyContact } from '../types';
 import { useAuth } from './AuthContext';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
+
 interface Props {
   sessionId: string;
   symptomSummary: string;
@@ -34,7 +37,7 @@ export const EmergencyBanner: React.FC<Props> = ({ sessionId, symptomSummary }) 
 
   const fetchContact = async () => {
     try {
-      const res = await fetch(`/api/emergency-contact/${sessionId}`, {
+      const res = await fetch(`${API_BASE_URL}/api/emergency-contact/${sessionId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -67,7 +70,7 @@ export const EmergencyBanner: React.FC<Props> = ({ sessionId, symptomSummary }) 
     setSetupError(null);
 
     try {
-      const res = await fetch('/api/emergency-contact', {
+      const res = await fetch(`${API_BASE_URL}/api/emergency-contact`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -104,7 +107,7 @@ export const EmergencyBanner: React.FC<Props> = ({ sessionId, symptomSummary }) 
     setAlertStatus('sending');
 
     try {
-      const res = await fetch('/api/emergency-alert', {
+      const res = await fetch(`${API_BASE_URL}/api/emergency-alert`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

@@ -12,7 +12,27 @@ import { Message, TriageResult, PipelineStageTrace, UrgencyLevel, MedicalExtract
 import { AlertService } from './alertService';
 
 const app = express();
-const PORT = 3000;
+
+// Custom CORS middleware
+app.use((req, res, next) => {
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'https://med-lens-ai-sigma.vercel.app'
+  ];
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'medlens-triage-jwt-secret-key-12345';
 
 const requireAuth = async (req: any, res: express.Response, next: express.NextFunction) => {

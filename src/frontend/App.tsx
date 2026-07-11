@@ -26,6 +26,9 @@ import { VoiceInput } from './components/VoiceInput';
 import { EmergencyBanner } from './components/EmergencyBanner';
 import { useTranslation } from 'react-i18next';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
+
 export default function App() {
   const { t, i18n } = useTranslation();
 
@@ -117,7 +120,7 @@ export default function App() {
   const fetchSessionList = useCallback(async () => {
     if (!token) return;
     try {
-      const res = await fetch('/api/sessions', {
+      const res = await fetch(`${API_BASE_URL}/api/sessions`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -143,7 +146,7 @@ export default function App() {
   const fetchSessionDetails = async (id: string) => {
     if (!token) return;
     try {
-      const res = await fetch(`/api/sessions/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/sessions/${id}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -164,7 +167,7 @@ export default function App() {
     if (!token) return null;
     const newId = `session_${Date.now()}`;
     try {
-      const res = await fetch('/api/sessions', {
+      const res = await fetch(`${API_BASE_URL}/api/sessions`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -189,7 +192,7 @@ export default function App() {
     if (!token) return;
     if (window.confirm(i18n.language === 'ta' ? 'அனைத்து ஆலோசனை பதிவுகளையும் நீக்க விரும்புகிறீர்களா? இதை மீட்டெடுக்க முடியாது.' : 'Are you sure you want to clear all consultation records? This cannot be undone.')) {
       try {
-        const res = await fetch('/api/clear-history', { 
+        const res = await fetch(`${API_BASE_URL}/api/clear-history`, { 
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -290,7 +293,7 @@ export default function App() {
     if (!sessionId) {
       sessionId = `session_${Date.now()}`;
       try {
-        await fetch('/api/sessions', {
+        await fetch(`${API_BASE_URL}/api/sessions`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -345,7 +348,7 @@ export default function App() {
     });
 
     try {
-      const response = await fetch('/api/triage', {
+      const response = await fetch(`${API_BASE_URL}/api/triage`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
