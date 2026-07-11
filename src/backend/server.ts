@@ -15,13 +15,12 @@ const app = express();
 
 // Custom CORS middleware
 app.use((req, res, next) => {
-  const allowedOrigins = [
-    'http://localhost:5173',
-    'https://med-lens-ai-sigma.vercel.app'
-  ];
   const origin = req.headers.origin;
-  if (origin && allowedOrigins.includes(origin)) {
+  // Dynamically allow the requesting origin to support local dev, Vercel production, and Vercel preview URLs
+  if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
